@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>結構技師 讀書進度表</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230F2942'/%3E%3Ctext x='50' y='62' font-size='46' text-anchor='middle' fill='%23F4A259' font-family='Georgia'%3E結%3C/text%3E%3C/svg%3E">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root{
+  --bg:#0F2942;
+  --grid:rgba(142,202,230,0.09);
+  --panel:#153453;
+  --panel2:#1B3E60;
+  --line:#8ECAE6;
+  --text:#EAF3FA;
+  --text-dim:#89ADC7;
+  --accent:#F4A259;
+  --stamp:#D9542B;
+  --done:#6FCF97;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0; padding:0; background:var(--bg); color:var(--text); font-family:'Space Grotesk',system-ui,sans-serif; min-height:100vh;}
+body{
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  padding-bottom: 40px;
+}
+.wrap{max-width:480px; margin:0 auto; padding:18px 16px 8px;}
+
+/* Title block, drafting style */
+.titleblock{
+  border:1.5px solid var(--line);
+  border-radius:4px;
+  padding:0;
+  margin-bottom:16px;
+  overflow:hidden;
+  background:var(--panel);
+}
+.titleblock .row{display:flex; border-bottom:1px solid rgba(142,202,230,0.3);}
+.titleblock .row:last-child{border-bottom:none;}
+.titleblock .cell{flex:1; padding:8px 12px; border-right:1px solid rgba(142,202,230,0.3);}
+.titleblock .cell:last-child{border-right:none;}
+.tb-label{font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:1.5px; color:var(--text-dim); text-transform:uppercase; margin-bottom:2px;}
+.tb-value{font-size:15px; font-weight:700;}
+.tb-main{padding:12px 14px; text-align:center; background:var(--panel2);}
+.tb-main .tb-title{font-size:11px; letter-spacing:3px; color:var(--accent); font-family:'JetBrains Mono',monospace;}
+.tb-main .tb-phase{font-size:17px; font-weight:700; margin-top:4px;}
+
+/* Day nav */
+.daynav{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
+.daynav button{
+  background:var(--panel); border:1px solid var(--line); color:var(--line);
+  width:40px; height:40px; border-radius:6px; font-size:18px; cursor:pointer;
+}
+.daynav .datebox{text-align:center;}
+.daynav .datebox .big{font-size:20px; font-weight:700;}
+.daynav .datebox .small{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim);}
+.today-btn{
+  display:block; margin:0 auto 16px; background:none; border:1px solid var(--accent);
+  color:var(--accent); font-family:'JetBrains Mono',monospace; font-size:11px;
+  padding:5px 14px; border-radius:20px; cursor:pointer;
+}
+
+/* Checklist */
+.section-label{font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; margin:18px 0 8px 2px;}
+.checklist{display:flex; flex-direction:column; gap:8px;}
+.task{
+  display:flex; align-items:flex-start; gap:10px;
+  background:var(--panel); border:1px solid rgba(142,202,230,0.25);
+  border-radius:6px; padding:12px 12px; cursor:pointer; transition:all .15s ease;
+}
+.task.done{border-color:var(--done); background:rgba(111,207,151,0.08);}
+.task .box{
+  flex-shrink:0; width:22px; height:22px; border:2px solid var(--line); border-radius:4px;
+  margin-top:1px; display:flex; align-items:center; justify-content:center; font-size:14px; color:transparent;
+}
+.task.done .box{background:var(--done); border-color:var(--done); color:#0F2942; font-weight:700;}
+.task .txt{font-size:14.5px; line-height:1.4;}
+.task.done .txt{color:var(--text-dim); text-decoration:line-through;}
+.task.recurring .txt::before{content:"↻ "; color:var(--accent);}
+
+/* Rest toggle */
+.restbar{margin-top:14px; display:flex; align-items:center; justify-content:space-between; background:var(--panel); border:1px dashed rgba(142,202,230,0.4); border-radius:6px; padding:10px 12px;}
+.restbar span{font-size:13px; color:var(--text-dim);}
+.restbtn{background:none; border:1px solid var(--accent); color:var(--accent); border-radius:20px; padding:5px 14px; font-size:12px; font-family:'JetBrains Mono',monospace; cursor:pointer;}
+.restbtn.active{background:var(--accent); color:var(--bg); font-weight:700;}
+
+/* Stamp */
+.stamp-wrap{display:flex; justify-content:center; margin:18px 0 6px; min-height:70px; align-items:center;}
+.stamp{
+  border:3px solid var(--stamp); color:var(--stamp); border-radius:8px;
+  padding:8px 18px; font-family:'JetBrains Mono',monospace; font-weight:700;
+  font-size:15px; letter-spacing:2px; transform:rotate(-6deg); opacity:0;
+  animation:stampIn .35s ease forwards;
+}
+@keyframes stampIn{ from{opacity:0; transform:rotate(-6deg) scale(1.6);} to{opacity:1; transform:rotate(-6deg) scale(1);} }
+
+/* Week progress */
+.weekcard{background:var(--panel); border:1px solid rgba(142,202,230,0.25); border-radius:6px; padding:14px; margin-top:10px;}
+.weekcard .whead{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;}
+.weekcard .whead .wtitle{font-size:13px; color:var(--text-dim);}
+.weekcard .whead .wpct{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--accent);}
+.bar{height:10px; background:rgba(142,202,230,0.15); border-radius:5px; overflow:hidden;}
+.bar-fill{height:100%; background:linear-gradient(90deg, var(--accent), var(--done)); border-radius:5px; transition:width .3s ease;}
+
+/* Countdown */
+.countdown{
+  text-align:center; margin-top:18px; padding:14px; border-radius:6px;
+  background:linear-gradient(135deg, var(--panel2), var(--panel));
+  border:1px solid var(--line);
+}
+.countdown .num{font-size:32px; font-weight:700; color:var(--accent); font-family:'JetBrains Mono',monospace;}
+.countdown .lbl{font-size:11px; color:var(--text-dim); letter-spacing:2px; margin-top:2px;}
+
+.footer-note{text-align:center; font-size:11px; color:var(--text-dim); margin-top:22px; line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="titleblock">
+    <div class="tb-main">
+      <div class="tb-title">READING PLAN — 結構技師考試</div>
+      <div class="tb-phase" id="phaseTitle">—</div>
+    </div>
+    <div class="row">
+      <div class="cell">
+        <div class="tb-label">Week</div>
+        <div class="tb-value" id="weekLabel">—</div>
+      </div>
+      <div class="cell">
+        <div class="tb-label">Exam</div>
+        <div class="tb-value">11/14–15</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="daynav">
+    <button id="prevBtn">‹</button>
+    <div class="datebox">
+      <div class="big" id="dateBig">—</div>
+      <div class="small" id="dateSmall">—</div>
+    </div>
+    <button id="nextBtn">›</button>
+  </div>
+  <button class="today-btn" id="todayBtn">回到今天</button>
+
+  <div class="section-label">今日讀書範圍</div>
+  <div class="checklist" id="checklist"></div>
+
+  <div class="restbar">
+    <span id="restLabel">今天狀態正常</span>
+    <button class="restbtn" id="restBtn">標記休息日</button>
+  </div>
+
+  <div class="stamp-wrap" id="stampWrap"></div>
+
+  <div class="section-label">本週進度</div>
+  <div class="weekcard">
+    <div class="whead">
+      <span class="wtitle" id="weekProgressLabel">計算中…</span>
+      <span class="wpct" id="weekProgressPct">–</span>
+    </div>
+    <div class="bar"><div class="bar-fill" id="weekBar" style="width:0%"></div></div>
+  </div>
+
+  <div class="countdown">
+    <div class="num" id="countdownNum">–</div>
+    <div class="lbl">DAYS UNTIL EXAM</div>
+  </div>
+
+  <div class="footer-note">請依照安裝教學把此檔案存到「檔案」App後用Safari開啟，再加入主畫面<br>資料存在這支手機的 Safari 裡，換手機或清除瀏覽器資料會遺失</div>
+</div>
+
+<script>
+const EXAM_START = '2026-11-14';
+const EXAM_END = '2026-11-15';
+const PLAN_START = '2026-07-04';
+const PLAN_END = '2026-11-13';
+
+const RECURRING_BASE = ["公式盲寫 15–20 分鐘（睡前，闔書默寫）"];
+const RECURRING_DRILL = ["寫題三步驟：審題 → 作答 → 計算檢查"];
+
+const WEEKS = [
+  {start:'2026-07-04', end:'2026-07-12', phase:'第一階段：打底', label:'W1 · PC高分章節',
+    weekday:["PC Ch5 斷面應力計算 — 讀完闔書默寫公式","PC Ch6 所需預力與鋼鍵偏心距 — 讀完闔書默寫公式"],
+    weekend:["PC Ch4 預力損失、Ch7 斷面破壞彎矩","PC 考古題練習 2-3題","把卡住/忘記的公式抄入小本"]},
+  {start:'2026-07-13', end:'2026-07-19', phase:'第一階段：打底', label:'W2 · RC鞏固',
+    weekday:["RC Ch2,4,5,11 高分章節重做考古題","RC 公式盲寫測試"],
+    weekend:["RC Ch3,7,8 複習","RC 錯題檢討，公式卡補強"]},
+  {start:'2026-07-20', end:'2026-07-26', phase:'第一階段：打底', label:'W3 · 土力起步',
+    weekday:["土力 Ch5 滲透性 研讀","土力 Ch6 壓縮性 研讀"],
+    weekend:["土力 Ch7 剪力強度 研讀","土力 Ch3,4 研讀","土力公式卡整理"]},
+  {start:'2026-07-27', end:'2026-08-02', phase:'第一階段：打底', label:'W4 · 基工起步',
+    weekday:["基工 Ch1 側向土壓力與擋土壁體","基工 Ch3 淺基礎承載力"],
+    weekend:["基工 Ch4 筏基與開挖檢討","基工 Ch5 樁基礎","開始練習：算完隨手驗算關鍵數字"]},
+  {start:'2026-08-03', end:'2026-08-09', phase:'第一階段：打底', label:'W5 · 土力+基工收尾',
+    weekday:["土力+基工 剩餘章節(Ch2,6,7)研讀","土力/基工 考古題入門題"],
+    weekend:["土力+基工混合考古題演練","錯題整理進小本"]},
+  {start:'2026-08-10', end:'2026-08-16', phase:'第一階段：打底', label:'W6 · 結構學-靜定',
+    weekday:["結構 Ch3,4 靜定梁/鋼架分析","結構 Ch5,6 靜定桁架/變位分析"],
+    weekend:["結構 Ch7 影響線","結構 Ch8 諧和變形法","闔書重解1-2題"]},
+  {start:'2026-08-17', end:'2026-08-23', phase:'第一階段：打底', label:'W7 · 結構學-傳統解法+矩陣',
+    weekday:["結構 Ch9 傾角變位法（練熟練快）","結構 Ch10 彎矩分配法（傳統解法最高優先）"],
+    weekend:["結構 Ch13 矩陣 — 正式練習","結構 Ch12,14 快速複習"]},
+  {start:'2026-08-24', end:'2026-08-30', phase:'第二階段：補完全科', label:'W8 · 結構動力',
+    weekday:["動力 Ch6 離散多自由度自由振動","動力 Ch7 離散多自由度強迫振動"],
+    weekend:["動力 Ch3,4 單自由度複習","動力公式盲寫加強"]},
+  {start:'2026-08-31', end:'2026-09-06', phase:'第二階段：補完全科', label:'W9 · 耐震設計',
+    weekday:["耐震 Ch3 動力反應分析"],
+    weekend:["耐震 Ch4 建築耐震設計規範","耐震考古題練習"]},
+  {start:'2026-09-07', end:'2026-09-13', phase:'第二階段：補完全科', label:'W10 · 鋼構-銲接/壓力桿件',
+    weekday:["鋼構 Ch7 銲接接合（全科最重＋去年扣分點）"],
+    weekend:["鋼構 Ch2 壓力桿件（次重）","鋼構考古題練習"]},
+  {start:'2026-09-14', end:'2026-09-20', phase:'第二階段：補完全科', label:'W11 · 鋼構收尾',
+    weekday:["鋼構 綜合型考題練習","鋼構 Ch3,Ch1 複習"],
+    weekend:["鋼構 Ch4,5,6 快速帶過","鋼構 Ch8 概念準備(問答型)","整卷考古題"]},
+  {start:'2026-09-21', end:'2026-09-27', phase:'第三階段：考古題總複習', label:'W12 · 考卷1 RC與預力', examDrill:true,
+    weekday:["考卷1 RC與預力 — 單題限時演練"],
+    weekend:["考卷1 RC與預力 — 整卷限時演練＋檢討"]},
+  {start:'2026-09-28', end:'2026-10-04', phase:'第三階段：考古題總複習', label:'W13 · 考卷2 動力耐震', examDrill:true,
+    weekday:["考卷2 結構動力與耐震設計 — 單題限時演練"],
+    weekend:["考卷2 結構動力與耐震設計 — 整卷限時演練＋檢討"]},
+  {start:'2026-10-05', end:'2026-10-11', phase:'第三階段：考古題總複習', label:'W14 · 考卷3 鋼構', examDrill:true,
+    weekday:["考卷3 鋼結構設計 — 單題限時演練"],
+    weekend:["考卷3 鋼結構設計 — 整卷限時演練＋檢討"]},
+  {start:'2026-10-12', end:'2026-10-18', phase:'第三階段：考古題總複習', label:'W15 · 考卷4 結構學', examDrill:true,
+    weekday:["考卷4 結構學 — 傳統解法限時演練"],
+    weekend:["考卷4 結構學 — 矩陣練習＋整卷限時演練"]},
+  {start:'2026-10-19', end:'2026-10-25', phase:'第三階段：考古題總複習', label:'W16 · 考卷5 土力基工', examDrill:true,
+    weekday:["考卷5 土壤力學與基礎工程 — 單題限時演練"],
+    weekend:["考卷5 土壤力學與基礎工程 — 整卷限時演練","全科弱點總複習"]},
+  {start:'2026-10-26', end:'2026-11-01', phase:'第四階段：全真模考', label:'W17 · 模考第1輪', examDrill:true,
+    weekday:["錯題本整理，找重複犯錯的類型"],
+    weekend:["全真模考第1輪 — 依考卷順序，限時4小時"]},
+  {start:'2026-11-02', end:'2026-11-08', phase:'第四階段：全真模考', label:'W18 · 模考第2輪', examDrill:true,
+    weekday:["公式卡總複習"],
+    weekend:["全真模考第2輪 — 依考卷順序，限時4小時"]},
+  {start:'2026-11-09', end:'2026-11-13', phase:'第四階段：全真模考', label:'W19 · 最後衝刺', examDrill:true,
+    weekday:["只複習公式卡與錯題本，不讀新內容"],
+    weekend:["輕鬆複習，保留體力，早點休息"]},
+];
+
+function findWeek(dateStr){
+  return WEEKS.find(w => dateStr >= w.start && dateStr <= w.end);
+}
+function isWeekendDate(dateStr){
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  return day === 0 || day === 6;
+}
+function todayStr(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function addDays(dateStr, delta){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m-1, d);
+  dt.setDate(dt.getDate() + delta);
+  const ny = dt.getFullYear();
+  const nm = String(dt.getMonth()+1).padStart(2,'0');
+  const nd = String(dt.getDate()).padStart(2,'0');
+  return `${ny}-${nm}-${nd}`;
+}
+function fmtDisplay(dateStr){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m-1, d);
+  const weekdays = ['週日','週一','週二','週三','週四','週五','週六'];
+  return { big: `${m}/${d}`, small: weekdays[dt.getDay()] };
+}
+function getTasksForDate(dateStr){
+  if(dateStr >= EXAM_START && dateStr <= EXAM_END){
+    return { isExam:true, tasks:["檢查應考用品：准考證、計算機、文具、手錶","保持平常心，相信這幾個月的準備"] };
+  }
+  const week = findWeek(dateStr);
+  if(!week) return { isExam:false, tasks:[] };
+  let tasks = [...RECURRING_BASE];
+  if(week.examDrill) tasks = [...tasks, ...RECURRING_DRILL];
+  tasks = [...tasks, ...(isWeekendDate(dateStr) ? week.weekend : week.weekday)];
+  return { isExam:false, tasks, week };
+}
+
+let currentDate = clampToRange(todayStr());
+function clampToRange(dateStr){
+  if(dateStr < PLAN_START) return PLAN_START;
+  if(dateStr > EXAM_END) return EXAM_END;
+  return dateStr;
+}
+
+// 改用瀏覽器本機儲存(localStorage)，因為這個檔案是直接在Safari開啟的本機檔案，
+// 不透過 Claude 平台，所以不會有呼叫次數限制，資料存在這支手機的 Safari 裡
+const weekCache = {};
+
+function weekKeyOf(dateStr){
+  if(dateStr >= EXAM_START && dateStr <= EXAM_END) return 'EXAM';
+  const week = findWeek(dateStr);
+  return week ? week.start : null;
+}
+
+function loadWeekData(weekKey){
+  if(weekCache[weekKey]) return weekCache[weekKey];
+  let data;
+  try{
+    const raw = localStorage.getItem(`week:${weekKey}`);
+    data = raw ? JSON.parse(raw) : { dates: {} };
+  }catch(e){
+    data = { dates: {} };
+  }
+  weekCache[weekKey] = data;
+  return data;
+}
+
+function saveWeekData(weekKey, data){
+  weekCache[weekKey] = data;
+  try{
+    localStorage.setItem(`week:${weekKey}`, JSON.stringify(data));
+  }catch(e){
+    console.error('storage save failed', e);
+  }
+}
+
+async function loadDay(dateStr){
+  const wk = weekKeyOf(dateStr);
+  if(!wk) return { checks: [], rest: false };
+  const weekData = loadWeekData(wk);
+  return weekData.dates[dateStr] || { checks: [], rest: false };
+}
+
+async function saveDay(dateStr, dayData){
+  const wk = weekKeyOf(dateStr);
+  if(!wk) return;
+  const weekData = loadWeekData(wk);
+  weekData.dates[dateStr] = dayData;
+  saveWeekData(wk, weekData);
+}
+
+async function render(){
+  const dateStr = currentDate;
+  const { isExam, tasks, week } = getTasksForDate(dateStr);
+  const disp = fmtDisplay(dateStr);
+  document.getElementById('dateBig').textContent = disp.big;
+  document.getElementById('dateSmall').textContent = disp.small + (dateStr === todayStr() ? '（今天）' : '');
+
+  if(isExam){
+    document.getElementById('phaseTitle').textContent = '考試日';
+    document.getElementById('weekLabel').textContent = '祝考試順利';
+  } else if(week){
+    document.getElementById('phaseTitle').textContent = week.phase;
+    document.getElementById('weekLabel').textContent = week.label;
+  }
+
+  const dayData = await loadDay(dateStr);
+  const checklistEl = document.getElementById('checklist');
+  checklistEl.innerHTML = '';
+  tasks.forEach((t, i) => {
+    const isDone = !!dayData.checks[i];
+    const isRecurring = RECURRING_BASE.includes(t) || RECURRING_DRILL.includes(t);
+    const div = document.createElement('div');
+    div.className = 'task' + (isDone ? ' done' : '') + (isRecurring ? ' recurring' : '');
+    div.innerHTML = `<div class="box">${isDone ? '✓' : ''}</div><div class="txt">${t}</div>`;
+    div.onclick = async () => {
+      dayData.checks[i] = !dayData.checks[i];
+      await saveDay(dateStr, dayData);
+      render();
+    };
+    checklistEl.appendChild(div);
+  });
+
+  // rest state
+  const restBtn = document.getElementById('restBtn');
+  const restLabel = document.getElementById('restLabel');
+  restBtn.classList.toggle('active', !!dayData.rest);
+  restLabel.textContent = dayData.rest ? '今天標記為休息日' : '今天狀態正常';
+  restBtn.onclick = async () => {
+    dayData.rest = !dayData.rest;
+    await saveDay(dateStr, dayData);
+    render();
+  };
+
+  // stamp if all done
+  const stampWrap = document.getElementById('stampWrap');
+  stampWrap.innerHTML = '';
+  if(tasks.length > 0 && tasks.every((t,i) => dayData.checks[i])){
+    const s = document.createElement('div');
+    s.className = 'stamp';
+    s.textContent = 'PASSED ✓ 今日完成';
+    stampWrap.appendChild(s);
+  }
+
+  // countdown
+  const diff = Math.round((new Date(EXAM_START) - new Date(todayStr())) / 86400000);
+  document.getElementById('countdownNum').textContent = diff >= 0 ? diff : '考試期間';
+
+  // week progress
+  if(week){
+    renderWeekProgress(week);
+  } else {
+    document.getElementById('weekProgressLabel').textContent = '—';
+    document.getElementById('weekProgressPct').textContent = '';
+    document.getElementById('weekBar').style.width = '0%';
+  }
+
+  document.getElementById('prevBtn').disabled = dateStr <= PLAN_START;
+  document.getElementById('nextBtn').disabled = dateStr >= EXAM_END;
+}
+
+async function renderWeekProgress(week){
+  const dates = [];
+  let d = week.start;
+  while(d <= week.end){ dates.push(d); d = addDays(d, 1); }
+  let total = 0, done = 0;
+  for(const ds of dates){
+    const { tasks } = getTasksForDate(ds);
+    const dayData = await loadDay(ds);
+    total += tasks.length;
+    done += tasks.filter((t,i) => dayData.checks[i]).length;
+  }
+  const pct = total > 0 ? Math.round((done/total)*100) : 0;
+  document.getElementById('weekProgressLabel').textContent = `${week.label}`;
+  document.getElementById('weekProgressPct').textContent = `${done}/${total} 項`;
+  document.getElementById('weekBar').style.width = pct + '%';
+}
+
+document.getElementById('prevBtn').onclick = () => { currentDate = clampToRange(addDays(currentDate, -1)); render(); };
+document.getElementById('nextBtn').onclick = () => { currentDate = clampToRange(addDays(currentDate, 1)); render(); };
+document.getElementById('todayBtn').onclick = () => { currentDate = clampToRange(todayStr()); render(); };
+
+render();
+</script>
+</body>
+</html>
