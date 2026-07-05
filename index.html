@@ -82,6 +82,31 @@ body{
 .task .txt{font-size:14.5px; line-height:1.4;}
 .task.done .txt{color:var(--text-dim); text-decoration:line-through;}
 .task.recurring .txt::before{content:"↻ "; color:var(--accent);}
+.task-body{flex:1; min-width:0;}
+.note-input{
+  margin-top:6px; width:100%; background:rgba(0,0,0,0.2); border:1px solid rgba(142,202,230,0.25);
+  border-radius:5px; padding:6px 8px; font-size:12.5px; color:var(--text);
+  font-family:'Space Grotesk',system-ui,sans-serif; resize:none;
+}
+.note-input::placeholder{color:var(--text-dim); opacity:0.7;}
+.note-input:focus{outline:none; border-color:var(--accent);}
+
+/* 筆記總覽 */
+.notes-toggle{
+  display:block; width:100%; margin-top:10px; background:var(--panel); border:1px solid var(--line);
+  color:var(--line); border-radius:6px; padding:10px; font-size:13px; font-family:'JetBrains Mono',monospace;
+  cursor:pointer; text-align:center;
+}
+.notes-panel{display:none; margin-top:10px;}
+.notes-panel.open{display:block;}
+.note-card{
+  background:var(--panel); border:1px solid rgba(142,202,230,0.25); border-left:3px solid var(--accent);
+  border-radius:6px; padding:10px 12px; margin-bottom:8px;
+}
+.note-card .ndate{font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--accent); margin-bottom:3px;}
+.note-card .ntask{font-size:12px; color:var(--text-dim); margin-bottom:4px;}
+.note-card .ntext{font-size:14px; line-height:1.4;}
+.notes-empty{text-align:center; color:var(--text-dim); font-size:13px; padding:16px;}
 
 /* Rest toggle */
 .restbar{margin-top:14px; display:flex; align-items:center; justify-content:space-between; background:var(--panel); border:1px dashed rgba(142,202,230,0.4); border-radius:6px; padding:10px 12px;}
@@ -173,52 +198,150 @@ body{
     <div class="lbl">DAYS UNTIL EXAM</div>
   </div>
 
+  <button class="notes-toggle" id="notesToggle">📒 弱點筆記總覽</button>
+  <div class="notes-panel" id="notesPanel"></div>
+
   <div class="footer-note">請依照安裝教學把此檔案存到「檔案」App後用Safari開啟，再加入主畫面<br>資料存在這支手機的 Safari 裡，換手機或清除瀏覽器資料會遺失</div>
 </div>
 
 <script>
 const EXAM_START = '2026-11-14';
 const EXAM_END = '2026-11-15';
-const PLAN_START = '2026-07-04';
 const PLAN_END = '2026-11-13';
 
 const RECURRING_BASE = ["公式盲寫 15–20 分鐘（睡前，闔書默寫）"];
 const RECURRING_DRILL = ["寫題三步驟：審題 → 作答 → 計算檢查"];
 
+const PLAN_START = '2026-07-05';
+const PHASE12_START = '2026-07-05';
+const PHASE12_END = '2026-09-20';
+
+// 依科目、依章節順序排列，不跳章節。重要章節拆成「讀完」+「驗證」兩個單位，
+// 不重要章節合併成一個單位快速帶過。平日消耗1個單位/天，假日消耗2個單位/天(時數較多)，
+// 消耗完畢後剩餘天數自動變成彈性複習/緩衝日，避免排太緊。
+const QUEUE = [
+  {s:'PC', t:'PC Ch6 收尾：剩餘4題試題精華，獨立完成（不看解答）'},
+  {s:'PC', t:'PC Ch7 斷面破壞彎矩 — 讀完＋闔書默寫公式'},
+  {s:'PC', t:'PC Ch7 — 挑2-3題獨立驗證（不看解答，能寫出來才算過）'},
+  {s:'PC', t:'PC Ch8 剪力設計 — 快速讀完（低分章節）＋驗證1題'},
+  {s:'PC', t:'PC Ch9 預力連續梁 — 讀完＋闔書默寫'},
+  {s:'PC', t:'PC Ch9 — 挑2題獨立驗證'},
+  {s:'RC/PC', t:'RC Ch4 剪力分析、Ch11 耐震設計 — 各挑1題重測，確認記憶還在（延遲複測）'},
+  {s:'土力', t:'土力 Ch1,2 序論/土壤基本指數 — 快速讀完＋各驗證1題'},
+  {s:'土力', t:'土力 Ch3 土壤分類 — 讀完＋驗證2題'},
+  {s:'土力', t:'土力 Ch4 土壤應力 — 讀完＋驗證2題'},
+  {s:'土力', t:'土力 Ch5 滲透性 — 讀完（高分章節）'},
+  {s:'土力', t:'土力 Ch5 — 挑2-3題獨立驗證'},
+  {s:'土力', t:'土力 Ch6 壓縮性 — 讀完（高分章節）'},
+  {s:'土力', t:'土力 Ch6 — 挑2-3題獨立驗證'},
+  {s:'土力', t:'土力 Ch7 剪力強度 — 讀完（高分章節）'},
+  {s:'土力', t:'土力 Ch7 — 挑2-3題獨立驗證'},
+  {s:'基工', t:'基工 Ch1 側向土壓力與擋土壁體 — 讀完（高分章節）'},
+  {s:'基工', t:'基工 Ch1 — 挑2-3題獨立驗證'},
+  {s:'基工', t:'基工 Ch2 邊坡穩定分析 — 快速讀完＋驗證1題'},
+  {s:'基工', t:'基工 Ch3 淺基礎承載力 — 讀完（高分章節）'},
+  {s:'基工', t:'基工 Ch3 — 挑2-3題獨立驗證'},
+  {s:'基工', t:'基工 Ch4 筏基與開挖檢討 — 讀完（高分章節）'},
+  {s:'基工', t:'基工 Ch4 — 挑2-3題獨立驗證'},
+  {s:'基工', t:'基工 Ch5 樁基礎 — 讀完（高分章節）'},
+  {s:'基工', t:'基工 Ch5 — 挑2-3題獨立驗證'},
+  {s:'基工', t:'基工 Ch6 夯實與地盤改良 — 快速讀完＋驗證1題'},
+  {s:'基工', t:'基工 Ch7 液化 — 快速讀完（全科最低分）＋驗證1題'},
+  {s:'土力/基工', t:'土力 Ch2 土壤基本指數、基工 Ch2 邊坡穩定分析、基工 Ch6 夯實與地盤改良 — 各1題重測（延遲複測，優先抽當時快速帶過的章節）'},
+  {s:'結構', t:'結構 Ch1,2 序論/穩定分析 — 快速讀完（觀念題）'},
+  {s:'結構', t:'結構 Ch3 靜定梁分析 — 讀完（高分章節）'},
+  {s:'結構', t:'結構 Ch3 — 挑2-3題獨立驗證'},
+  {s:'結構', t:'結構 Ch4 靜定鋼架分析 — 讀完（高分章節）'},
+  {s:'結構', t:'結構 Ch4 — 挑2-3題獨立驗證'},
+  {s:'結構', t:'結構 Ch5 靜定桁架分析 — 讀完（高分章節）'},
+  {s:'結構', t:'結構 Ch5 — 挑2-3題獨立驗證'},
+  {s:'結構', t:'結構 Ch6 靜定結構變位分析 — 讀完（高分章節）'},
+  {s:'結構', t:'結構 Ch6 — 挑2-3題獨立驗證'},
+  {s:'結構', t:'結構 Ch7 靜定結構影響線 — 讀完（高分章節）'},
+  {s:'結構', t:'結構 Ch7 — 挑2-3題獨立驗證'},
+  {s:'結構', t:'結構 靜定總驗證：Ch3,4,5,6,7 各1題重測，全部過關才進靜不定（進靜不定前的關卡）'},
+  {s:'結構', t:'結構 Ch8 諧和變形法 — 讀完（高分章節，練熟練快）'},
+  {s:'結構', t:'結構 Ch8 — 挑2-3題獨立驗證'},
+  {s:'結構', t:'結構 Ch9 傾角變位法 — 讀完（高分章節，練熟練快）'},
+  {s:'結構', t:'結構 Ch9 — 挑2-3題獨立驗證'},
+  {s:'結構', t:'結構 Ch10 彎矩分配法 — 讀完（高分章節）'},
+  {s:'結構', t:'結構 Ch10 — 挑2-3題獨立驗證'},
+  {s:'結構', t:'結構 Ch11 綜合彎矩分配法 — 讀完＋驗證1-2題'},
+  {s:'結構', t:'結構 Ch12 靜不定結構影響線 — 讀完＋驗證2題'},
+  {s:'結構', t:'結構 Ch13 矩陣 — 讀懂原理＋跟著例題練1題'},
+  {s:'結構', t:'結構 Ch13 矩陣 — 挑2-3題獨立驗證(1)'},
+  {s:'結構', t:'結構 Ch13 矩陣 — 挑2-3題獨立驗證(2，考題比重高值得多練)'},
+  {s:'結構', t:'結構 Ch14 靜不定結構近似分析 — 快速讀完＋驗證1題'},
+  {s:'結構', t:'結構學總驗證：Ch8,9,10,12,13 各1題重測（傳統解法+矩陣，全科總驗證關卡）'},
+  {s:'動力', t:'動力 Ch1,2 運動方程式推導/多自由度運動方程式 — 快速讀完'},
+  {s:'動力', t:'動力 Ch3 單自由度自由振動反應 — 讀完＋驗證2題'},
+  {s:'動力', t:'動力 Ch4 單自由度強迫振動反應 — 讀完＋驗證2題'},
+  {s:'動力', t:'動力 Ch5 單自由度近似頻率分析 — 快速讀完＋驗證1題'},
+  {s:'動力', t:'動力 Ch6 離散多自由度自由振動反應 — 讀完（全科最重）'},
+  {s:'動力', t:'動力 Ch6 — 挑2-3題獨立驗證'},
+  {s:'動力', t:'動力 Ch7 離散多自由度強迫振動反應 — 讀完（全科最重）'},
+  {s:'動力', t:'動力 Ch7 — 挑2-3題獨立驗證'},
+  {s:'耐震', t:'耐震 Ch1,2 地震工程概論/地震反應譜 — 快速讀完'},
+  {s:'耐震', t:'耐震 Ch3 動力反應分析 — 讀完（高分章節）'},
+  {s:'耐震', t:'耐震 Ch3 — 挑2-3題獨立驗證'},
+  {s:'耐震', t:'耐震 Ch4 建築耐震設計規範 — 讀完（高分章節）'},
+  {s:'耐震', t:'耐震 Ch4 — 挑2-3題獨立驗證'},
+  {s:'鋼構', t:'鋼構 Ch1 導論 — 讀完＋驗證2題'},
+  {s:'鋼構', t:'鋼構 Ch2 壓力桿件 — 讀完（次高分）'},
+  {s:'鋼構', t:'鋼構 Ch2 — 挑2-3題獨立驗證'},
+  {s:'鋼構', t:'鋼構 Ch3 梁桿件 — 讀完＋驗證2題'},
+  {s:'鋼構', t:'鋼構 Ch4 梁柱桿件 — 讀完＋驗證1-2題'},
+  {s:'鋼構', t:'鋼構 Ch5 拉力桿件 — 快速讀完＋驗證1題'},
+  {s:'鋼構', t:'鋼構 Ch6 螺栓接合 — 快速讀完（全科最低分）＋驗證1題'},
+  {s:'鋼構', t:'鋼構 Ch7 銲接接合 — 讀完（全科最重＋去年扣分點）'},
+  {s:'鋼構', t:'鋼構 Ch7 — 挑2-3題獨立驗證(1)'},
+  {s:'鋼構', t:'鋼構 Ch7 — 挑2-3題獨立驗證(2，加強因為去年扣分)'},
+  {s:'鋼構', t:'鋼構 Ch8 耐震設計 — 概念準備即可（問答型，不用大量計算）'},
+  {s:'鋼構', t:'鋼構 綜合型考題 — 挑2-3題練習'},
+  {s:'動力/耐震/鋼構', t:'總驗證：動力Ch6,7、耐震Ch3,4、鋼構Ch7 各1題重測（第二階段總驗證關卡）'},
+];
+
+function subjectPhase(subject){
+  if(['PC','RC/PC','土力','基工','土力/基工','結構'].includes(subject)) return '第一階段：打底';
+  return '第二階段：補完全科';
+}
+
+const DAILY = {};
+(function buildDailyAssignments(){
+  let ptr = 0;
+  let d = PHASE12_START;
+  while(d <= PHASE12_END){
+    const capacity = isWeekendDate(d) ? 2 : 1;
+    const items = [];
+    for(let i=0; i<capacity; i++){
+      if(ptr < QUEUE.length){ items.push(QUEUE[ptr]); ptr++; }
+    }
+    if(items.length === 0){
+      DAILY[d] = { subject:'彈性日', tasks:['彈性複習日：補進度、複習卡住的公式與錯題本，或提前預習下一科'] };
+    } else {
+      DAILY[d] = { subject: items[0].s, tasks: items.map(it => it.t) };
+    }
+    d = addDays(d, 1);
+  }
+})();
+
+const SUBJECT_BLOCKS = [];
+(function buildSubjectBlocks(){
+  let d = PHASE12_START;
+  let cur = null;
+  while(d <= PHASE12_END){
+    const subj = DAILY[d].subject;
+    if(cur && cur.subject === subj){
+      cur.end = d;
+    } else {
+      cur = { subject: subj, start: d, end: d };
+      SUBJECT_BLOCKS.push(cur);
+    }
+    d = addDays(d, 1);
+  }
+})();
+
 const WEEKS = [
-  {start:'2026-07-04', end:'2026-07-12', phase:'第一階段：打底', label:'W1 · PC高分章節',
-    weekday:["PC Ch5 斷面應力計算 — 讀完闔書默寫公式","PC Ch6 所需預力與鋼鍵偏心距 — 讀完闔書默寫公式"],
-    weekend:["PC Ch4 預力損失、Ch7 斷面破壞彎矩","PC 考古題練習 2-3題","把卡住/忘記的公式抄入小本"]},
-  {start:'2026-07-13', end:'2026-07-19', phase:'第一階段：打底', label:'W2 · RC鞏固',
-    weekday:["RC Ch2,4,5,11 高分章節重做考古題","RC 公式盲寫測試"],
-    weekend:["RC Ch3,7,8 複習","RC 錯題檢討，公式卡補強"]},
-  {start:'2026-07-20', end:'2026-07-26', phase:'第一階段：打底', label:'W3 · 土力起步',
-    weekday:["土力 Ch5 滲透性 研讀","土力 Ch6 壓縮性 研讀"],
-    weekend:["土力 Ch7 剪力強度 研讀","土力 Ch3,4 研讀","土力公式卡整理"]},
-  {start:'2026-07-27', end:'2026-08-02', phase:'第一階段：打底', label:'W4 · 基工起步',
-    weekday:["基工 Ch1 側向土壓力與擋土壁體","基工 Ch3 淺基礎承載力"],
-    weekend:["基工 Ch4 筏基與開挖檢討","基工 Ch5 樁基礎","開始練習：算完隨手驗算關鍵數字"]},
-  {start:'2026-08-03', end:'2026-08-09', phase:'第一階段：打底', label:'W5 · 土力+基工收尾',
-    weekday:["土力+基工 剩餘章節(Ch2,6,7)研讀","土力/基工 考古題入門題"],
-    weekend:["土力+基工混合考古題演練","錯題整理進小本"]},
-  {start:'2026-08-10', end:'2026-08-16', phase:'第一階段：打底', label:'W6 · 結構學-靜定',
-    weekday:["結構 Ch3,4 靜定梁/鋼架分析","結構 Ch5,6 靜定桁架/變位分析"],
-    weekend:["結構 Ch7 影響線","結構 Ch8 諧和變形法","闔書重解1-2題"]},
-  {start:'2026-08-17', end:'2026-08-23', phase:'第一階段：打底', label:'W7 · 結構學-傳統解法+矩陣',
-    weekday:["結構 Ch9 傾角變位法（練熟練快）","結構 Ch10 彎矩分配法（傳統解法最高優先）"],
-    weekend:["結構 Ch13 矩陣 — 正式練習","結構 Ch12,14 快速複習"]},
-  {start:'2026-08-24', end:'2026-08-30', phase:'第二階段：補完全科', label:'W8 · 結構動力',
-    weekday:["動力 Ch6 離散多自由度自由振動","動力 Ch7 離散多自由度強迫振動"],
-    weekend:["動力 Ch3,4 單自由度複習","動力公式盲寫加強"]},
-  {start:'2026-08-31', end:'2026-09-06', phase:'第二階段：補完全科', label:'W9 · 耐震設計',
-    weekday:["耐震 Ch3 動力反應分析"],
-    weekend:["耐震 Ch4 建築耐震設計規範","耐震考古題練習"]},
-  {start:'2026-09-07', end:'2026-09-13', phase:'第二階段：補完全科', label:'W10 · 鋼構-銲接/壓力桿件',
-    weekday:["鋼構 Ch7 銲接接合（全科最重＋去年扣分點）"],
-    weekend:["鋼構 Ch2 壓力桿件（次重）","鋼構考古題練習"]},
-  {start:'2026-09-14', end:'2026-09-20', phase:'第二階段：補完全科', label:'W11 · 鋼構收尾',
-    weekday:["鋼構 綜合型考題練習","鋼構 Ch3,Ch1 複習"],
-    weekend:["鋼構 Ch4,5,6 快速帶過","鋼構 Ch8 概念準備(問答型)","整卷考古題"]},
   {start:'2026-09-21', end:'2026-09-27', phase:'第三階段：考古題總複習', label:'W12 · 考卷1 RC與預力', examDrill:true,
     weekday:["考卷1 RC與預力 — 單題限時演練"],
     weekend:["考卷1 RC與預力 — 整卷限時演練＋檢討"]},
@@ -279,6 +402,12 @@ function getTasksForDate(dateStr){
   if(dateStr >= EXAM_START && dateStr <= EXAM_END){
     return { isExam:true, tasks:["檢查應考用品：准考證、計算機、文具、手錶","保持平常心，相信這幾個月的準備"] };
   }
+  if(dateStr >= PHASE12_START && dateStr <= PHASE12_END){
+    const day = DAILY[dateStr];
+    if(!day) return { isExam:false, tasks:[] };
+    let tasks = [...RECURRING_BASE, ...day.tasks];
+    return { isExam:false, tasks, week:{ phase: subjectPhase(day.subject), label: day.subject } };
+  }
   const week = findWeek(dateStr);
   if(!week) return { isExam:false, tasks:[] };
   let tasks = [...RECURRING_BASE];
@@ -300,6 +429,7 @@ const weekCache = {};
 
 function weekKeyOf(dateStr){
   if(dateStr >= EXAM_START && dateStr <= EXAM_END) return 'EXAM';
+  if(dateStr >= PHASE12_START && dateStr <= PHASE12_END) return dateStr;
   const week = findWeek(dateStr);
   return week ? week.start : null;
 }
@@ -328,9 +458,11 @@ function saveWeekData(weekKey, data){
 
 async function loadDay(dateStr){
   const wk = weekKeyOf(dateStr);
-  if(!wk) return { checks: [], rest: false };
+  if(!wk) return { checks: [], rest: false, notes: [] };
   const weekData = loadWeekData(wk);
-  return weekData.dates[dateStr] || { checks: [], rest: false };
+  const d = weekData.dates[dateStr] || { checks: [], rest: false, notes: [] };
+  if(!d.notes) d.notes = [];
+  return d;
 }
 
 async function saveDay(dateStr, dayData){
@@ -364,7 +496,28 @@ async function render(){
     const isRecurring = RECURRING_BASE.includes(t) || RECURRING_DRILL.includes(t);
     const div = document.createElement('div');
     div.className = 'task' + (isDone ? ' done' : '') + (isRecurring ? ' recurring' : '');
-    div.innerHTML = `<div class="box">${isDone ? '✓' : ''}</div><div class="txt">${t}</div>`;
+    const box = document.createElement('div');
+    box.className = 'box';
+    box.textContent = isDone ? '✓' : '';
+    const body = document.createElement('div');
+    body.className = 'task-body';
+    const txt = document.createElement('div');
+    txt.className = 'txt';
+    txt.textContent = t;
+    const noteInput = document.createElement('input');
+    noteInput.className = 'note-input';
+    noteInput.type = 'text';
+    noteInput.placeholder = '備註（例如：多寫了幾題／這裡還不熟）';
+    noteInput.value = dayData.notes[i] || '';
+    noteInput.onclick = (e) => e.stopPropagation();
+    noteInput.oninput = async () => {
+      dayData.notes[i] = noteInput.value;
+      await saveDay(dateStr, dayData);
+    };
+    body.appendChild(txt);
+    body.appendChild(noteInput);
+    div.appendChild(box);
+    div.appendChild(body);
     div.onclick = async () => {
       dayData.checks[i] = !dayData.checks[i];
       await saveDay(dateStr, dayData);
@@ -398,8 +551,10 @@ async function render(){
   const diff = Math.round((new Date(EXAM_START) - new Date(todayStr())) / 86400000);
   document.getElementById('countdownNum').textContent = diff >= 0 ? diff : '考試期間';
 
-  // week progress
-  if(week){
+  // 進度條：Phase1/2 用「科目區塊」進度，Phase3/4 用「週」進度
+  if(dateStr >= PHASE12_START && dateStr <= PHASE12_END){
+    renderSubjectProgress(dateStr);
+  } else if(week){
     renderWeekProgress(week);
   } else {
     document.getElementById('weekProgressLabel').textContent = '—';
@@ -409,6 +564,30 @@ async function render(){
 
   document.getElementById('prevBtn').disabled = dateStr <= PLAN_START;
   document.getElementById('nextBtn').disabled = dateStr >= EXAM_END;
+}
+
+async function renderSubjectProgress(dateStr){
+  const block = SUBJECT_BLOCKS.find(b => dateStr >= b.start && dateStr <= b.end);
+  if(!block){
+    document.getElementById('weekProgressLabel').textContent = '—';
+    document.getElementById('weekProgressPct').textContent = '';
+    document.getElementById('weekBar').style.width = '0%';
+    return;
+  }
+  const dates = [];
+  let d = block.start;
+  while(d <= block.end){ dates.push(d); d = addDays(d, 1); }
+  let total = 0, done = 0;
+  for(const ds of dates){
+    const { tasks } = getTasksForDate(ds);
+    const dayData = await loadDay(ds);
+    total += tasks.length;
+    done += tasks.filter((t,i) => dayData.checks[i]).length;
+  }
+  const pct = total > 0 ? Math.round((done/total)*100) : 0;
+  document.getElementById('weekProgressLabel').textContent = `${block.subject} 進度`;
+  document.getElementById('weekProgressPct').textContent = `${done}/${total} 項`;
+  document.getElementById('weekBar').style.width = pct + '%';
 }
 
 async function renderWeekProgress(week){
@@ -427,6 +606,64 @@ async function renderWeekProgress(week){
   document.getElementById('weekProgressPct').textContent = `${done}/${total} 項`;
   document.getElementById('weekBar').style.width = pct + '%';
 }
+
+function getAllDates(){
+  const dates = [];
+  let d = PHASE12_START;
+  while(d <= PHASE12_END){ dates.push(d); d = addDays(d, 1); }
+  WEEKS.forEach(w => {
+    let dd = w.start;
+    while(dd <= w.end){ dates.push(dd); dd = addDays(dd, 1); }
+  });
+  let ed = EXAM_START;
+  while(ed <= EXAM_END){ dates.push(ed); ed = addDays(ed, 1); }
+  return dates;
+}
+
+async function collectAllNotes(){
+  const dates = getAllDates();
+  const results = [];
+  for(const ds of dates){
+    const { tasks } = getTasksForDate(ds);
+    const dayData = await loadDay(ds);
+    (dayData.notes || []).forEach((note, i) => {
+      if(note && note.trim()){
+        results.push({ date: ds, task: tasks[i] || '', note: note.trim() });
+      }
+    });
+  }
+  results.sort((a,b) => a.date.localeCompare(b.date));
+  return results;
+}
+
+async function renderNotesPanel(){
+  const panel = document.getElementById('notesPanel');
+  const notes = await collectAllNotes();
+  if(notes.length === 0){
+    panel.innerHTML = '<div class="notes-empty">還沒有任何備註，寫完題目覺得不熟的地方，可以在任務下方輸入框記錄下來</div>';
+    return;
+  }
+  panel.innerHTML = notes.map(n => {
+    const disp = fmtDisplay(n.date);
+    return `<div class="note-card">
+      <div class="ndate">${disp.big} ${disp.small}</div>
+      <div class="ntask">${n.task}</div>
+      <div class="ntext">${n.note}</div>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('notesToggle').onclick = async () => {
+  const panel = document.getElementById('notesPanel');
+  const isOpen = panel.classList.contains('open');
+  if(isOpen){
+    panel.classList.remove('open');
+  } else {
+    panel.classList.add('open');
+    panel.innerHTML = '<div class="notes-empty">載入中…</div>';
+    await renderNotesPanel();
+  }
+};
 
 document.getElementById('prevBtn').onclick = () => { currentDate = clampToRange(addDays(currentDate, -1)); render(); };
 document.getElementById('nextBtn').onclick = () => { currentDate = clampToRange(addDays(currentDate, 1)); render(); };
