@@ -198,6 +198,9 @@ body{
     <div class="lbl">DAYS UNTIL EXAM</div>
   </div>
 
+  <button class="notes-toggle" id="formulaToggle">📐 公式複盤總覽</button>
+  <div class="notes-panel" id="formulaPanel"></div>
+
   <button class="notes-toggle" id="notesToggle">📒 弱點筆記總覽</button>
   <div class="notes-panel" id="notesPanel"></div>
 
@@ -209,8 +212,27 @@ const EXAM_START = '2026-11-14';
 const EXAM_END = '2026-11-15';
 const PLAN_END = '2026-11-13';
 
-const RECURRING_BASE = ["公式盲寫 15–20 分鐘（睡前，闔書默寫）"];
 const RECURRING_DRILL = ["寫題三步驟：審題 → 作答 → 計算檢查"];
+
+function extractLabel(taskText){
+  // 取任務文字「—」前面的章節標籤部分，例如「土力 Ch5 滲透性 — 讀完（高分章節）」→「土力 Ch5 滲透性」
+  const idx = taskText.indexOf('—');
+  let label = idx > -1 ? taskText.slice(0, idx).trim() : taskText.trim();
+  // 去掉「挑X題獨立驗證」「隨機抽」這類本身沒有新章節資訊的敘述，保留章節代號
+  return label;
+}
+
+function buildBlindWriteTask(dayTasks){
+  const labels = [];
+  dayTasks.forEach(t => {
+    const l = extractLabel(t);
+    if(l && !labels.includes(l)) labels.push(l);
+  });
+  if(labels.length === 0){
+    return "公式盲寫 15–20 分鐘：複習最近讀過章節的公式（闔書默寫，不看小抄）";
+  }
+  return `公式盲寫 15–20 分鐘：針對「${labels.join('、')}」闔書默寫公式（含適用條件、變數定義），寫完翻書核對，寫不出來的地方記得寫進下方備註`;
+}
 
 const PLAN_START = '2026-07-07';
 const PHASE12_START = '2026-07-07';
@@ -418,14 +440,15 @@ function getTasksForDate(dateStr){
   if(dateStr >= PHASE12_START && dateStr <= PHASE12_END){
     const day = DAILY[dateStr];
     if(!day) return { isExam:false, tasks:[] };
-    let tasks = [...RECURRING_BASE, ...day.tasks];
+    let tasks = [buildBlindWriteTask(day.tasks), ...day.tasks];
     return { isExam:false, tasks, week:{ phase: subjectPhase(day.subject), label: day.subject } };
   }
   const week = findWeek(dateStr);
   if(!week) return { isExam:false, tasks:[] };
-  let tasks = [...RECURRING_BASE];
+  const weekTasks = isWeekendDate(dateStr) ? week.weekend : week.weekday;
+  let tasks = [buildBlindWriteTask(weekTasks)];
   if(week.examDrill) tasks = [...tasks, ...RECURRING_DRILL];
-  tasks = [...tasks, ...(isWeekendDate(dateStr) ? week.weekend : week.weekday)];
+  tasks = [...tasks, ...weekTasks];
   return { isExam:false, tasks, week };
 }
 
@@ -506,7 +529,7 @@ async function render(){
   checklistEl.innerHTML = '';
   tasks.forEach((t, i) => {
     const isDone = !!dayData.checks[i];
-    const isRecurring = RECURRING_BASE.includes(t) || RECURRING_DRILL.includes(t);
+    const isRecurring = t.startsWith('公式盲寫') || RECURRING_DRILL.includes(t);
     const div = document.createElement('div');
     div.className = 'task' + (isDone ? ' done' : '') + (isRecurring ? ' recurring' : '');
     const box = document.createElement('div');
@@ -633,7 +656,7 @@ function getAllDates(){
   return dates;
 }
 
-async function collectAllNotes(){
+async function collectAllNotes(filterFn){
   const dates = getAllDates();
   const results = [];
   for(const ds of dates){
@@ -641,7 +664,10 @@ async function collectAllNotes(){
     const dayData = await loadDay(ds);
     (dayData.notes || []).forEach((note, i) => {
       if(note && note.trim()){
-        results.push({ date: ds, task: tasks[i] || '', note: note.trim() });
+        const task = tasks[i] || '';
+        if(!filterFn || filterFn(task)){
+          results.push({ date: ds, task, note: note.trim() });
+        }
       }
     });
   }
@@ -649,14 +675,9 @@ async function collectAllNotes(){
   return results;
 }
 
-async function renderNotesPanel(){
-  const panel = document.getElementById('notesPanel');
-  const notes = await collectAllNotes();
-  if(notes.length === 0){
-    panel.innerHTML = '<div class="notes-empty">還沒有任何備註，寫完題目覺得不熟的地方，可以在任務下方輸入框記錄下來</div>';
-    return;
-  }
-  panel.innerHTML = notes.map(n => {
+function renderNoteCards(notes, emptyMsg){
+  if(notes.length === 0) return `<div class="notes-empty">${emptyMsg}</div>`;
+  return notes.map(n => {
     const disp = fmtDisplay(n.date);
     return `<div class="note-card">
       <div class="ndate">${disp.big} ${disp.small}</div>
@@ -665,6 +686,30 @@ async function renderNotesPanel(){
     </div>`;
   }).join('');
 }
+
+async function renderNotesPanel(){
+  const panel = document.getElementById('notesPanel');
+  const notes = await collectAllNotes(t => !t.startsWith('公式盲寫'));
+  panel.innerHTML = renderNoteCards(notes, '還沒有任何備註，寫完題目覺得不熟的地方，可以在任務下方輸入框記錄下來');
+}
+
+async function renderFormulaPanel(){
+  const panel = document.getElementById('formulaPanel');
+  const notes = await collectAllNotes(t => t.startsWith('公式盲寫'));
+  panel.innerHTML = renderNoteCards(notes, '還沒有公式盲寫的備註，盲寫完寫不出來的公式，可以在「公式盲寫」任務下方記錄章節+公式名稱');
+}
+
+document.getElementById('formulaToggle').onclick = async () => {
+  const panel = document.getElementById('formulaPanel');
+  const isOpen = panel.classList.contains('open');
+  if(isOpen){
+    panel.classList.remove('open');
+  } else {
+    panel.classList.add('open');
+    panel.innerHTML = '<div class="notes-empty">載入中…</div>';
+    await renderFormulaPanel();
+  }
+};
 
 document.getElementById('notesToggle').onclick = async () => {
   const panel = document.getElementById('notesPanel');
